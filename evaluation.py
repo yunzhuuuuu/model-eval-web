@@ -63,19 +63,20 @@ def mean_reciprocal_rank(rankings, most_relevant):
     return rr_sum / len(most_relevant)
 
 # main
-def build_results_dataframe():
+def build_results_tables():
     datasets = load_datasets()
     rankings = load_rankings()
-    rows = []
+    result_tables = {}
     for dataset_name in datasets:
         most_relevant = datasets[dataset_name]["most_relevant"]
+        rows = []
         for model in EMBEDDING_METHODS:
             r = rankings[dataset_name][model]
             rows.append({
-                "dataset": dataset_name,
                 "model": model,
                 "Recall@1": recall_at_k(r, most_relevant, 1),
                 "Recall@3": recall_at_k(r, most_relevant, 3),
                 "MRR": mean_reciprocal_rank(r, most_relevant)
             })
-    return pd.DataFrame(rows)
+        result_tables[dataset_name] = pd.DataFrame(rows)
+    return result_tables
