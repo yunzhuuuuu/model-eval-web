@@ -1,7 +1,7 @@
 ### Repo Structure
 cori_model_eval/  
 ├── evaluation.py  
-├── visualization.py  
+├── app.py  
 ├── datasets/  
 ├── embeddings/  
 
@@ -14,12 +14,14 @@ pip install -r requirements.txt
 ```
 3. run streamlit
 ```
-streamlit run visualization.py
+streamlit run app.py
 ```
 
 ### TODO
-- figure out how students submit their dataset (in csv?) through the web
-- write a script to convert csv dataset to npz
+- figure out how students submit their dataset/api keys through the web
+- write a script to convert csv dataset to embeddings
+    - sentence embeddings done, need to work on gemini
 - write instructions
+    - the students should submit topic name, facts.csv, qanda.csv
 - deploy the web
-- students write/choose their own evaluation metrics? **(ask cori if she wants this)**
+- modulize the three sections

@@ -34,7 +34,9 @@ with tab1:
                 
     st.header("Background")
     st.markdown("""
-    Olin students developed a note-taking application, where users store information as notes and could later retrieve that information by asking questions. 
+    _Content here can be revised depends on the focus of this project (eg. more about Echominds/HCD/retrieval ML)_
+
+    Students from Olin College of Engineering developed a note-taking application, where users store information as notes and could later retrieve that information by asking questions. 
     The app implements a retrieval model that can match the user's question to the most relevant note instead of matching exact key words.    
 
     The retrieval system compares the meaning of a question with the meaning of every available note.
@@ -52,6 +54,7 @@ with tab1:
     A strong retrieval model consistently places the correct note among its highest-ranked results, which can also be reflected by some metrics we'll discuss in the Evaluation Results tab.
 
     The SQuAD and Assistive Technology datasets were used by the Olin students and serve as examples of retrieval datasets.
+                
     """)
 
     st.header("Your Task")
