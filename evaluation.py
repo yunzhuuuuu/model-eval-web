@@ -2,8 +2,9 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import defaultdict
 import pandas as pd
+import os
 
-EMBEDDING_METHODS = [
+MODELS = [
     "gemini_3072",
     "all-mpnet-base-v2",
     "multi-qa-MiniLM-L6-dot-v1"
@@ -12,21 +13,18 @@ EMBEDDING_METHODS = [
 # load data
 def load_datasets():
     datasets = {}
+    # auto discover datasets
+    for filename in os.listdir("datasets"):
+        if not filename.endswith(".npz"):
+            continue
+        dataset_name = filename[:-4]
 
-    d = np.load("datasets/squad_1_1.npz")
-    datasets["squad_1_1"] = {
-        "questions": d["questions"], 
-        "contexts": d["contexts"],
-        "most_relevant": d["most_relevant_context"]
-    } # old name questions_squad, contexts_squad, most_relevant_squad
-
-    d = np.load("datasets/assistive_technology_320.npz")
-    datasets["assistive_technology_320"] = {
-        "questions": d["questions"],
-        "contexts": d["contexts"],
-        "most_relevant": d["most_relevant_context"]
-    } # old name questions_at, contexts_at, most_relevant_at 
-
+        d = np.load(os.path.join("datasets", filename))
+        datasets[dataset_name] = {
+            "questions": d["questions"],
+            "contexts": d["contexts"],
+            "most_relevant": d["most_relevant_context"]
+        }
     return datasets
 
 # generate similarity rankings
@@ -39,12 +37,18 @@ def calculate_similarities(question_embeddings, context_embeddings):
 
 def load_rankings():
     all_rankings = defaultdict(dict)
-    for dataset_name in ["squad_1_1", "assistive_technology_320"]:
-        for embedding_method in EMBEDDING_METHODS:
-            question_embeddings = np.load(f"embeddings/{dataset_name}_questions_{embedding_method}.npz")["embeddings"]
-            context_embeddings = np.load(f"embeddings/{dataset_name}_contexts_{embedding_method}.npz")["embeddings"]
-            rankings = calculate_similarities(question_embeddings, context_embeddings)
-            all_rankings[dataset_name][embedding_method] = rankings
+    datasets = load_datasets()
+    for dataset_name in datasets:
+        for model in MODELS:
+            q_path = (f"embeddings/"f"{dataset_name}_questions_{model}.npz")
+            c_path = (f"embeddings/"f"{dataset_name}_contexts_{model}.npz")
+            if not (os.path.exists(q_path) and os.path.exists(c_path)):
+                continue
+
+            question_embeddings = np.load(q_path)["embeddings"]
+            context_embeddings = np.load(c_path)["embeddings"]
+            rankings = calculate_similarities(question_embeddings,context_embeddings)
+            all_rankings[dataset_name][model] = rankings
     return all_rankings
 
 # evaluation methods
@@ -70,13 +74,22 @@ def build_results_tables():
     for dataset_name in datasets:
         most_relevant = datasets[dataset_name]["most_relevant"]
         rows = []
-        for model in EMBEDDING_METHODS:
+        for model in MODELS:
+            if model not in rankings[dataset_name]:
+                rows.append({
+                    "model": model,
+                    "Recall@1": np.nan,
+                    "Recall@3": np.nan,
+                    "MRR": np.nan
+                })
+                continue
+
             r = rankings[dataset_name][model]
             rows.append({
                 "model": model,
-                "Recall@1": recall_at_k(r, most_relevant, 1),
-                "Recall@3": recall_at_k(r, most_relevant, 3),
-                "MRR": mean_reciprocal_rank(r, most_relevant)
+                "Recall@1": round(recall_at_k(r, most_relevant, 1), 4),
+                "Recall@3": round(recall_at_k(r, most_relevant, 3), 4),
+                "MRR": round(mean_reciprocal_rank(r, most_relevant), 4)
             })
         result_tables[dataset_name] = pd.DataFrame(rows)
     return result_tables

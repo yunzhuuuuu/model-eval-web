@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
+import os
 
 from evaluation import load_datasets, build_results_tables
+from generate_embeddings import embed_csv_dataset
 
 st.set_page_config(
     page_title="Embedding Evaluation Dashboard",
@@ -68,6 +70,40 @@ with tab1:
                 
     TODO: write instructions on how to create their datasets, what it should look like and how to upload it        
     """)
+
+    st.header("Upload Your Dataset")
+    dataset_name = st.text_input("Dataset Name:")
+    # TODO: instructions on how to create the dataset, what it should look like and how to upload it
+    facts_file = st.file_uploader("Upload facts.csv", type=["csv"], key="facts")
+    qanda_file = st.file_uploader("Upload qanda.csv", type=["csv"], key="qanda")
+
+    if st.button("Save Dataset"):
+        if not dataset_name:
+            st.error("Please provide a dataset name.")
+        elif facts_file is None or qanda_file is None:
+            st.error("Please upload both CSV files.")
+        else:
+            dataset_dir = os.path.join("raw_data", dataset_name)
+            os.makedirs(dataset_dir, exist_ok=True)
+            # save uploads
+            facts_path = os.path.join(dataset_dir, "facts.csv")
+            qanda_path = os.path.join(dataset_dir, "qanda.csv")
+            with open(facts_path, "wb") as f:
+                f.write(facts_file.getbuffer())
+            with open(qanda_path, "wb") as f:
+                f.write(qanda_file.getbuffer())
+
+            st.info("Dataset saved. Generating embeddings...")
+
+            # run pipeline
+            embed_csv_dataset(
+                dataset_name,
+                facts_path,
+                qanda_path,
+                generate_gemini_embeddings=False 
+            )
+            st.success(f"Dataset '{dataset_name}' is ready and embedded.")
+            st.rerun()
 
 # Dataset Explorer
 with tab2:
@@ -163,24 +199,27 @@ with tab3:
     (more: https://www.pinecone.io/learn/offline-evaluation/#Mean-Reciprocal-Rank-(MRR))
     """)
 
-    st.button(
-    "Evaluate Your Dataset",
-    disabled=True,
-    help="TODO: generate a new table of the model performances on the customized dataset"
-)
+    if st.button("Evaluate Available Datasets"):
+        for dataset_name, table in results_tables.items():
+            st.markdown(f"### {dataset_name}")
+            st.dataframe(
+                table,
+                use_container_width=True,
+                hide_index=True
+            )
 
-    st.markdown("### SQuAD")
+    # st.markdown("### SQuAD")
 
-    st.dataframe(
-        results_tables["squad_1_1"],
-        use_container_width=True,
-        hide_index=True
-    )
+    # st.dataframe(
+    #     results_tables["squad_1_1"],
+    #     use_container_width=True,
+    #     hide_index=True
+    # )
 
-    st.markdown("### Assistive Technology")
+    # st.markdown("### Assistive Technology")
 
-    st.dataframe(
-        results_tables["assistive_technology_320"],
-        use_container_width=True,
-        hide_index=True
-    )
+    # st.dataframe(
+    #     results_tables["assistive_technology_320"],
+    #     use_container_width=True,
+    #     hide_index=True
+    # )

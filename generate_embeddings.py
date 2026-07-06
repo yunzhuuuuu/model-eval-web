@@ -44,6 +44,11 @@ def gemini_embedded(texts, label):
 #     embed_dataset("assistive_technology_320", questions, contexts, most_relevant_indices, generate_gemini_embeddings)
 
 def embed_csv_dataset(dataset_name, facts_csv, qa_csv, generate_gemini_embeddings=False):
+    dataset_path = f"datasets/{dataset_name}.npz"
+    if os.path.exists(dataset_path):
+        print(f"Dataset '{dataset_name}' already embedded, skipping...")
+        return
+    
     # Facts CSV:
     # col 0 = context
     with open(facts_csv, encoding='utf-8') as f:
@@ -59,17 +64,15 @@ def embed_csv_dataset(dataset_name, facts_csv, qa_csv, generate_gemini_embedding
         questions = [row[0] for row in rows[1:]]
         most_relevant = [row[1] for row in rows[1:]]
 
-    context_to_index = {
-        context: i
-        for i, context in enumerate(contexts)
-    }
-
+    # if contexts in qanda not in facts, add them
+    seen = set(contexts)
     for context in most_relevant:
-        if context not in context_to_index:
-            raise ValueError(
-                f"Context from Q&A file not found in facts file:\n{context}"
-            )
-        
+        if context not in seen:
+            contexts.append(context)
+            seen.add(context)
+            print(f"Context from Q&A file missing:\n{context}. Adding to facts list")
+    context_to_index = {context: i for i, context in enumerate(contexts)}
+
     most_relevant_indices = [
         context_to_index[context]
         for context in most_relevant
