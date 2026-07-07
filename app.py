@@ -11,14 +11,13 @@ st.set_page_config(
 )
 st.title("Retrieval Model Evaluation Dashboard")
 
-datasets = load_datasets()
-results_tables = build_results_tables()
-
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "Introduction",
     "Dataset Explorer",
+    "Upload Dataset",
     "Evaluation Results"
 ])
+
 
 # Introduction
 with tab1:
@@ -31,7 +30,7 @@ with tab1:
     - Investigate how different dataset can affect retrieval accuracy
     - Design and evaluate their own retrieval datasets
 
-    There won't be any coding involved. Students only need to create their datasets in excel forms and upload it here (TO BE DONE)     
+    There won't be any coding involved. Students only need to create their datasets in excel forms and upload it here. 
     """)
                 
     st.header("Background")
@@ -61,61 +60,21 @@ with tab1:
 
     st.header("Your Task")
     st.markdown("""
-    You will create and evaluate their own datasets based on the scenario of a note-taking application. A valid dataset should contain:
-    The topic of the notes is flexible. For example, a dataset could focus on:
-    - Study notes for a class
-    - Cooking recipes
-    - Travel planning information
-    - Any other information that could reasonably be stored as notes 
-                
-    TODO: write instructions on how to create their datasets, what it should look like and how to upload it        
+    You will create and evaluate their own datasets based on the scenario of a note-taking application. Read on to explore some example datasets and learn how to create and evaluate your own dataset.   
     """)
 
-    st.header("Upload Your Dataset")
-    dataset_name = st.text_input("Dataset Name:")
-    # TODO: instructions on how to create the dataset, what it should look like and how to upload it
-    facts_file = st.file_uploader("Upload facts.csv", type=["csv"], key="facts")
-    qanda_file = st.file_uploader("Upload qanda.csv", type=["csv"], key="qanda")
-
-    if st.button("Save Dataset"):
-        if not dataset_name:
-            st.error("Please provide a dataset name.")
-        elif facts_file is None or qanda_file is None:
-            st.error("Please upload both CSV files.")
-        else:
-            dataset_dir = os.path.join("raw_data", dataset_name)
-            os.makedirs(dataset_dir, exist_ok=True)
-            # save uploads
-            facts_path = os.path.join(dataset_dir, "facts.csv")
-            qanda_path = os.path.join(dataset_dir, "qanda.csv")
-            with open(facts_path, "wb") as f:
-                f.write(facts_file.getbuffer())
-            with open(qanda_path, "wb") as f:
-                f.write(qanda_file.getbuffer())
-
-            st.info("Dataset saved. Generating embeddings...")
-
-            # run pipeline
-            embed_csv_dataset(
-                dataset_name,
-                facts_path,
-                qanda_path,
-                generate_gemini_embeddings=False 
-            )
-            st.success(f"Dataset '{dataset_name}' is ready and embedded.")
-            st.rerun()
 
 # Dataset Explorer
 with tab2:
     st.header("Dataset Selection")
+    datasets = load_datasets()
     st.markdown("""
     Choose a dataset to explore.
 
     Each dataset contains:
 
-    - Questions: Information requests that a user might ask.
-    - Contexts: Notes (fact statements) that may contain answers.
-    - Ground Truth Matches: Human-annotated links between questions and the context that best answers them.
+    - Q&A: Information requests that a user might ask and human-annotated the context that best answers them.
+    - Contexts: Notes (fact statements) that the model use to search for the answers.
     """)
     dataset_name = st.selectbox(
         "Select a dataset",
@@ -127,18 +86,20 @@ with tab2:
     most_relevant = dataset["most_relevant"]
 
     # questions table
-    st.subheader("Questions")
+    st.subheader("Q&A")
     st.markdown("""
-    The Questions table lists all questions and the ID of the corresponding context pieces that has been labeled as the correct match.
-    """)
+    The Questions and Answers table lists all questions and the context that has been labeled as the correct match.    """)
     questions_df = pd.DataFrame({
         "Question ID": range(len(questions)),
         "Question": questions,
-        "Correct Context ID": most_relevant
+        "Correct Context": [
+            contexts[idx]
+            for idx in most_relevant
+        ]
     })
     st.dataframe(
         questions_df,
-        use_container_width=True,
+        width="stretch",
         height=350,
         hide_index=True
     )
@@ -155,7 +116,7 @@ with tab2:
     })
     st.dataframe(
         contexts_df,
-        use_container_width=True,
+        width="stretch",
         height=350,
         hide_index=True
     )
@@ -183,10 +144,93 @@ with tab2:
         contexts[correct_context_id]
     )
 
-# Evaluation Results
 
+# Upload Dataset
 with tab3:
+    st.header("Create and Upload Your Dataset")
+
+    st.header("How to create your dataset")
+    st.markdown("""
+    Before you start creating your own dataset and evaluating the model performance on it, you should make sure you've explored the Dataset Explorer Tab and have a sense of what a valid dataset looks like. We will also provide more examples below.
+
+    #### What to include in your dataset
+
+    Your dataset notes can be about any topic that could reasonably be stored in a note-taking application, including:
+
+    - Cooking
+    - Travel planning
+    - Study notes
+    - ......
+
+    You can create the dataset yourself or use LLMs to generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
+                
+    [PROMPT TO BE DONE]
+                
+    You are also encouraged to make both by yourself and by using LLMs and explore the differences in the evaluation results.
+ 
+    #### What your dataset should look like
+    Your dataset must include 2 .csv files which you could create in Excel or Google Sheets and then export as .csv files. They are:
+
+    1. context.csv
+    This file contains your notes stored as sentences. Each row should contain one note. The first row should be a header row with the column name "context". 
+    Example:
+                
+    TODO: example screenshot
+                
+    2. qanda.csv
+    This file contains questions and their correct matching note. Each row should contain one question and its corresponding note. The first row should be a header row with the column names "question" and "context". The "context" column must contain the exact text of the matching note from context.csv.
+    Example:
+                
+    TODO: example screenshot
+                
+    #### Important notes:
+    - Every “Relevant Note” in qanda.csv must exist exactly in context.csv.
+    - You can have multiple questions that match the same note.
+    - You can have notes in context.csv that are not matched to any question in qanda.csv.                
+    - You should manually check that the questions and correct notes pairs are accurate and make sense.
+
+    After uploading, embeddings will be generated automatically and the dataset will become available for evaluation.
+    """)
+
+    st.header("Upload Files")
+    st.markdown("""Give a word or short phrase to name your dataset.""")
+    dataset_name = st.text_input("Dataset Name:")
+    st.markdown("""Upload your two .csv files. Once you click "Save Dataset", the system will automatically generate embeddings for your dataset and save it for evaluation.""")
+    context_file = st.file_uploader("Upload context", type=["csv"], key="context")
+    qanda_file = st.file_uploader("Upload q&a", type=["csv"], key="qanda")
+
+    if st.button("Save Dataset"):
+        if not dataset_name:
+            st.error("Please provide a dataset name.")
+        elif context_file is None or qanda_file is None:
+            st.error("Please upload both CSV files.")
+        else:
+            dataset_dir = os.path.join("raw_data", dataset_name)
+            os.makedirs(dataset_dir, exist_ok=True)
+            # save uploads
+            context_path = os.path.join(dataset_dir, "context.csv")
+            qanda_path = os.path.join(dataset_dir, "qanda.csv")
+            with open(context_path, "wb") as f:
+                f.write(context_file.getbuffer())
+            with open(qanda_path, "wb") as f:
+                f.write(qanda_file.getbuffer())
+
+            st.info("Dataset saved. Generating embeddings...")
+
+            # run pipeline
+            embed_csv_dataset(
+                dataset_name,
+                context_path,
+                qanda_path,
+                generate_gemini_embeddings=False 
+            )
+            st.success(f"Dataset '{dataset_name}' is ready and embedded.")
+
+
+# Evaluation Results
+with tab4:
     st.subheader("Evaluation Metrics")
+    results_tables = build_results_tables()
     st.markdown("""
     This page summarizes how well different retrieval models perform on each dataset.
     The results table provides a quantitative comparison of retrieval performance across datasets and models.
@@ -197,6 +241,8 @@ with tab3:
     - Recall@3 measures how often the correct note appears within the top three results. This reflects how likely a user is to find the correct note after reviewing a small number of suggestions.
     - Mean Reciprocal Rank (MRR) evaluates not only whether the correct note was retrieved, but also how highly it was ranked. Models receive higher scores when the correct note appears closer to the top of the results list.
     (more: https://www.pinecone.io/learn/offline-evaluation/#Mean-Reciprocal-Rank-(MRR))
+    
+    TODO: users should be able to choose from various metrics to evaluate
     """)
 
     if st.button("Evaluate Available Datasets"):
@@ -204,7 +250,7 @@ with tab3:
             st.markdown(f"### {dataset_name}")
             st.dataframe(
                 table,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 
@@ -212,7 +258,7 @@ with tab3:
 
     # st.dataframe(
     #     results_tables["squad_1_1"],
-    #     use_container_width=True,
+    #     width="stretch",
     #     hide_index=True
     # )
 
@@ -220,6 +266,6 @@ with tab3:
 
     # st.dataframe(
     #     results_tables["assistive_technology_320"],
-    #     use_container_width=True,
+    #     width="stretch",
     #     hide_index=True
     # )
