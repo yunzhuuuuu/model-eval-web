@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
-from evaluation import load_datasets, build_results_tables
+from evaluation import load_datasets, build_results_tables, AVAILABLE_METRICS
 from generate_embeddings import embed_csv_dataset
 
 st.set_page_config(
@@ -35,7 +35,7 @@ with tab1:
                 
     st.header("Background")
     st.markdown("""
-    _Content here can be revised depends on the focus of this project (eg. more about Echominds/HCD/retrieval ML)_
+    _Will link to another introduction of retrieval models and sentence transformers_
 
     Students from Olin College of Engineering developed a note-taking application, where users store information as notes and could later retrieve that information by asking questions. 
     The app implements a retrieval model that can match the user's question to the most relevant note instead of matching exact key words.    
@@ -230,42 +230,38 @@ with tab3:
 # Evaluation Results
 with tab4:
     st.subheader("Evaluation Metrics")
-    results_tables = build_results_tables()
     st.markdown("""
     This page summarizes how well different retrieval models perform on each dataset.
     The results table provides a quantitative comparison of retrieval performance across datasets and models.
 
-    Three evaluation metrics are reported:
+    Choose which metrics to display below:
 
-    - Recall@1 measures how often the correct note is ranked first. For example, a Recall@1 score of 0.80 means the model returned the correct note as its top result for 80% of questions.
-    - Recall@3 measures how often the correct note appears within the top three results. This reflects how likely a user is to find the correct note after reviewing a small number of suggestions.
-    - Mean Reciprocal Rank (MRR) evaluates not only whether the correct note was retrieved, but also how highly it was ranked. Models receive higher scores when the correct note appears closer to the top of the results list.
+    - **Recall@1** measures how often the correct note is ranked first. For example, a Recall@1 score of 0.80 means the model returned the correct note as its top result for 80% of questions.
+    - **Recall@3** measures how often the correct note appears within the top three results. This reflects how likely a user is to find the correct note after reviewing a small number of suggestions.
+    - **Mean Reciprocal Rank (MRR)** evaluates not only whether the correct note was retrieved, but also how highly it was ranked. Models receive higher scores when the correct note appears closer to the top of the results list.
     (more: https://www.pinecone.io/learn/offline-evaluation/#Mean-Reciprocal-Rank-(MRR))
-    
-    TODO: users should be able to choose from various metrics to evaluate
+    - **Mean Rank** is the average position of the correct note in the ranked results (e.g., a Mean Rank of 2.5 means the correct note is typically found around the 2nd or 3rd spot). Lower is better.
+ 
+    A few other common retrieval metrics are **not** included above, because in this dataset every question has exactly one correct note. That single detail makes each of them turn into just another way of writing Recall@k or MRR, so they wouldn't tell us anything new:
+ 
+    - **Precision@k** measures what fraction of the top-*k* retrieved results are actually relevant. Normally, if a question could have several correct notes, Precision@k and Recall@k would give different information. But here, since there's only ever one correct note, Precision@k is just Recall@k divided by k — it's the same score, only smaller and less intuitive. That's why it's left out.
+    - **Hit Rate@k** measures whether *at least one* relevant result appears in the top-*k* (a yes/no per question, averaged across all questions). This distinction only matters when a question could have multiple correct notes. Since each question here has just one, "getting at least one hit" and "getting the one correct note" mean exactly the same thing — so Hit Rate@k is identical to Recall@k, just under a different name.
     """)
 
+    selected_metrics = st.multiselect(
+        "Select metrics to display",
+        options=AVAILABLE_METRICS,
+    )
+
     if st.button("Evaluate Available Datasets"):
-        for dataset_name, table in results_tables.items():
-            st.markdown(f"### {dataset_name}")
-            st.dataframe(
-                table,
-                width="stretch",
-                hide_index=True
-            )
-
-    # st.markdown("### SQuAD")
-
-    # st.dataframe(
-    #     results_tables["squad_1_1"],
-    #     width="stretch",
-    #     hide_index=True
-    # )
-
-    # st.markdown("### Assistive Technology")
-
-    # st.dataframe(
-    #     results_tables["assistive_technology_320"],
-    #     width="stretch",
-    #     hide_index=True
-    # )
+        if not selected_metrics:
+            st.warning("Please select at least one metric.")
+        else:
+            results_tables = build_results_tables(selected_metrics)
+            for dataset_name, table in results_tables.items():
+                st.markdown(f"### {dataset_name}")
+                st.dataframe(
+                    table,
+                    width="stretch",
+                    hide_index=True
+                )

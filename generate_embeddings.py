@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai.errors import ClientError
 from csv import reader
+import streamlit as st
+
 
 # instructions on getting API key in Readme
 load_dotenv()
@@ -13,21 +15,28 @@ client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 def gemini_embedded(texts, label):
     # get gemini embeddings
-    while True:
-        try:
-            result=client.models.embed_content(
-                model="gemini-embedding-001",
-                contents=texts
-            )
-            break
+    BATCH_SIZE = 99   # max requests per minute is 100 for gemini free plan
+    all_embeddings = []
 
-        except ClientError as e:
-            if "RESOURCE_EXHAUSTED" not in str(e):
-                raise
-            # max requests per minute is 100 for gemini free plan
-            print("Quota exceeded. Sleeping 60s...")
-            time.sleep(60)
-    embeddings = np.array([embedding.values for embedding in result.embeddings])
+    for start in range(0, len(texts), BATCH_SIZE):
+        batch = texts[start:start + BATCH_SIZE]
+
+        while True:
+            try:
+                result = client.models.embed_content(
+                    model="gemini-embedding-001",
+                    contents=batch
+                )
+                break
+            except ClientError as e:
+                if "RESOURCE_EXHAUSTED" not in str(e):
+                    raise
+                st.warning("Gemini quota exceeded. Waiting 60 seconds before retrying. Please don't leave the page.")
+                time.sleep(60)
+        batch_embeddings = np.array([embedding.values for embedding in result.embeddings])
+        all_embeddings.append(batch_embeddings)
+    embeddings = np.concatenate(all_embeddings, axis=0)
+
     print(f"saving gemini embeddings {label} {embeddings.shape}")
     np.savez(f"{label}.npz", embeddings=embeddings)
 

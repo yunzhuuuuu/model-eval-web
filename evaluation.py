@@ -10,6 +10,8 @@ MODELS = [
     "multi-qa-MiniLM-L6-dot-v1"
 ]
 
+AVAILABLE_METRICS = ["Recall@1", "Recall@3", "MRR", "Mean Rank"]
+
 # load data
 def load_datasets():
     datasets = {}
@@ -29,10 +31,10 @@ def load_datasets():
 
 # generate similarity rankings
 def calculate_similarities(question_embeddings, context_embeddings):
-    similarities = cosine_similarity(question_embeddings,context_embeddings)
+    similarities = cosine_similarity(question_embeddings, context_embeddings)
     rankings = np.zeros(similarities.shape, np.int32)
     for i in range(similarities.shape[0]):
-        rankings[i,:] = np.argsort(-similarities[i,:])
+        rankings[i, :] = np.argsort(-similarities[i, :])
     return rankings
 
 def load_rankings():
@@ -40,14 +42,14 @@ def load_rankings():
     datasets = load_datasets()
     for dataset_name in datasets:
         for model in MODELS:
-            q_path = (f"embeddings/"f"{dataset_name}_questions_{model}.npz")
-            c_path = (f"embeddings/"f"{dataset_name}_contexts_{model}.npz")
+            q_path = (f"embeddings/" f"{dataset_name}_questions_{model}.npz")
+            c_path = (f"embeddings/" f"{dataset_name}_contexts_{model}.npz")
             if not (os.path.exists(q_path) and os.path.exists(c_path)):
                 continue
 
             question_embeddings = np.load(q_path)["embeddings"]
             context_embeddings = np.load(c_path)["embeddings"]
-            rankings = calculate_similarities(question_embeddings,context_embeddings)
+            rankings = calculate_similarities(question_embeddings, context_embeddings)
             all_rankings[dataset_name][model] = rankings
     return all_rankings
 
@@ -66,8 +68,36 @@ def mean_reciprocal_rank(rankings, most_relevant):
         rr_sum += 1 / (rank + 1)
     return rr_sum / len(most_relevant)
 
+def mean_rank(rankings, most_relevant):
+    """Average 1-indexed position of the correct context across all questions."""
+    rank_sum = 0
+    for q in range(len(most_relevant)):
+        rank = np.where(rankings[q] == most_relevant[q])[0][0]
+        rank_sum += (rank + 1)
+    return rank_sum / len(most_relevant)
+
+# maps metric name -> function that computes it from (rankings, most_relevant)
+def compute_metric(metric_name, rankings, most_relevant):
+    if metric_name == "Recall@1":
+        return recall_at_k(rankings, most_relevant, 1)
+    elif metric_name == "Recall@3":
+        return recall_at_k(rankings, most_relevant, 3)
+    elif metric_name == "MRR":
+        return mean_reciprocal_rank(rankings, most_relevant)
+    elif metric_name == "Mean Rank":
+        return mean_rank(rankings, most_relevant)
+    else:
+        raise ValueError(f"Unknown metric: {metric_name}")
+
 # main
-def build_results_tables():
+def build_results_tables(selected_metrics=None):
+    """
+    selected_metrics: list of metric names to include (subset of AVAILABLE_METRICS).
+    Defaults to all available metrics if not specified.
+    """
+    if selected_metrics is None:
+        selected_metrics = AVAILABLE_METRICS
+
     datasets = load_datasets()
     rankings = load_rankings()
     result_tables = {}
@@ -75,21 +105,16 @@ def build_results_tables():
         most_relevant = datasets[dataset_name]["most_relevant"]
         rows = []
         for model in MODELS:
+            row = {"model": model}
             if model not in rankings[dataset_name]:
-                rows.append({
-                    "model": model,
-                    "Recall@1": np.nan,
-                    "Recall@3": np.nan,
-                    "MRR": np.nan
-                })
+                for metric in selected_metrics:
+                    row[metric] = np.nan
+                rows.append(row)
                 continue
 
             r = rankings[dataset_name][model]
-            rows.append({
-                "model": model,
-                "Recall@1": round(recall_at_k(r, most_relevant, 1), 4),
-                "Recall@3": round(recall_at_k(r, most_relevant, 3), 4),
-                "MRR": round(mean_reciprocal_rank(r, most_relevant), 4)
-            })
+            for metric in selected_metrics:
+                row[metric] = round(compute_metric(metric, r, most_relevant), 4)
+            rows.append(row)
         result_tables[dataset_name] = pd.DataFrame(rows)
     return result_tables
