@@ -1,33 +1,35 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import os
+import time
+from dotenv import load_dotenv
+from google import genai
+from google.genai.errors import ClientError
 from csv import reader
-import json
+
+# instructions on getting API key in Readme
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 def gemini_embedded(texts, label):
     # get gemini embeddings
-    batch_start = 0
-    batch_size = 250
-    all_embeddings = []
-    while batch_start < len(texts):
-        with open('request.json','w') as f:
-            obj = {'instances': [
-                {"content": text}
-                for text in texts[batch_start: batch_start+batch_size]],
-                'parameters' : {
-                    'autoTruncate': True
-                }}
-            json.dump(obj, f)
-        os.system("./get_gemini_embeddings.sh")
-        with open('gemini_embeddings.json') as f:
-            embeddings = json.load(f)
+    while True:
+        try:
+            result=client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=texts
+            )
+            break
 
-            batch_embeddings = np.array([x['embeddings']['values'] for x in embeddings['predictions']])
-            all_embeddings.append(batch_embeddings)
-        batch_start += batch_size
-    all_embeddings = np.concatenate(all_embeddings)
-    print(f"saving gemini embeddings {label} {all_embeddings.shape}")
-    np.savez(f"{label}.npz", embeddings=all_embeddings)
+        except ClientError as e:
+            if "RESOURCE_EXHAUSTED" not in str(e):
+                raise
+            # max requests per minute is 100 for gemini free plan
+            print("Quota exceeded. Sleeping 60s...")
+            time.sleep(60)
+    embeddings = np.array([embedding.values for embedding in result.embeddings])
+    print(f"saving gemini embeddings {label} {embeddings.shape}")
+    np.savez(f"{label}.npz", embeddings=embeddings)
 
 # def embed_assistive_tech(generate_gemini_embeddings=False):
 #     with open("assistive_technotes_320.csv") as f:
@@ -118,18 +120,17 @@ def embed_sentence_transformer(model, texts, label):
     )
     np.savez(label, embeddings=embeddings)
 
-if __name__ == "__main__":
-    # embed_squad()
-    dataset1 = "assistive_technology_320"
-    dataset2 = "cooking"
-    # should rewrite to run for all unprocessed datasets automatically
-    # embed_csv_dataset(
-    #     dataset1,
-    #     f"raw_data/{dataset1}/facts.csv",
-    #     f"raw_data/{dataset1}/qanda.csv"
-    # )
-    embed_csv_dataset(
-        dataset2,
-        f"raw_data/{dataset2}/facts.csv",
-        f"raw_data/{dataset2}/qanda.csv"
-    )
+# if __name__ == "__main__":
+#     # embed_squad()
+#     dataset1 = "assistive_technology_320"
+#     dataset2 = "cooking"
+#     embed_csv_dataset(
+#         dataset1,
+#         f"raw_data/{dataset1}/facts.csv",
+#         f"raw_data/{dataset1}/qanda.csv"
+#     )
+#     embed_csv_dataset(
+#         dataset2,
+#         f"raw_data/{dataset2}/facts.csv",
+#         f"raw_data/{dataset2}/qanda.csv"
+#     )

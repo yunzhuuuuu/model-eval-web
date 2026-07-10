@@ -222,7 +222,7 @@ with tab3:
                 dataset_name,
                 context_path,
                 qanda_path,
-                generate_gemini_embeddings=False 
+                generate_gemini_embeddings=True 
             )
             st.success(f"Dataset '{dataset_name}' is ready and embedded.")
 
