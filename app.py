@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
+import subprocess
+import gdown
 
 from evaluation import load_datasets, build_results_tables, AVAILABLE_METRICS
 from generate_embeddings import embed_csv_dataset
@@ -10,6 +12,24 @@ st.set_page_config(
     layout="wide"
 )
 st.title("Retrieval Model Evaluation Dashboard")
+
+@st.cache_resource
+def download_preprocessed_data():
+    if not (os.path.exists("datasets") and os.path.exists("embeddings")):
+        gdown.download(id="1oqNS_vKYaTcTBJi-gJWmd6T2MSJkTTlT", output="data_and_embeddings.tar.gz", quiet=False)
+        subprocess.run(["tar", "-xvzf", "data_and_embeddings.tar.gz"], check=True)
+    return True
+
+download_preprocessed_data()
+# @st.cache_resource
+# def download_csv(file_id, output_path):
+#     if not os.path.exists(output_path):
+#         os.makedirs(os.path.dirname(output_path), exist_ok=True)
+#         gdown.download(id=file_id, output=output_path, quiet=False)
+#     return True
+
+# download_csv("1u47P1htCfa0MT9UR68waUTulwpZP6YdY", "raw_data/assistive_technology/context.csv")
+# download_csv("1oX5pQ2Op9ClgdufoC180zUsduJVHd-s3", "raw_data/assistive_technology/qanda.csv")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "Introduction",
@@ -67,7 +87,9 @@ with tab1:
 # Dataset Explorer
 with tab2:
     st.header("Dataset Selection")
+
     datasets = load_datasets()
+
     st.markdown("""
     Choose a dataset to explore.
 

@@ -2,7 +2,6 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import os
 import time
-from dotenv import load_dotenv
 from google import genai
 from google.genai.errors import ClientError
 from csv import reader
@@ -10,8 +9,7 @@ import streamlit as st
 
 
 # instructions on getting API key in Readme
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def gemini_embedded(texts, label):
     # get gemini embeddings

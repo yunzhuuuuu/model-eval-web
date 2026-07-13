@@ -1,6 +1,8 @@
-.env
+.streamlit/secrets.toml
 __pycache__/
 .vscode/
 datasets/
 embeddings/
+data_and_embeddings.tar.gz
 ml_class_eval.py
+test.py
