@@ -7,8 +7,6 @@ from google.genai.errors import ClientError
 from csv import reader
 import streamlit as st
 
-
-# instructions on getting API key in Readme
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def gemini_embedded(texts, label):
@@ -29,8 +27,13 @@ def gemini_embedded(texts, label):
             except ClientError as e:
                 if "RESOURCE_EXHAUSTED" not in str(e):
                     raise
-                st.warning("Gemini quota exceeded. Waiting 60 seconds before retrying. Please don't leave the page.")
-                time.sleep(60)
+                countdown_placeholder = st.empty()
+                for remaining in range(60, 0, -1):
+                    countdown_placeholder.warning(
+                        f"Gemini quota exceeded. Retrying in {remaining} seconds. Please don't leave the page."
+                    )
+                    time.sleep(1)
+                countdown_placeholder.empty()
         batch_embeddings = np.array([embedding.values for embedding in result.embeddings])
         all_embeddings.append(batch_embeddings)
     embeddings = np.concatenate(all_embeddings, axis=0)

@@ -194,18 +194,20 @@ with tab3:
     Your dataset must include 2 .csv files which you could create in Excel or Google Sheets and then export as .csv files. They are:
 
     1. context.csv
-    This file contains your notes stored as sentences. Each row should contain one note. The first row should be a header row with the column name "context". 
+    This file contains your notes stored as sentences. Each row should contain one note. The first row should be a header row with the column name "Note". 
     Example:
-                
-    TODO: example screenshot
-                
+    """)
+    st.image("assets/contexts.png")
+
+    st.markdown("""            
     2. qanda.csv
-    This file contains questions and their correct matching note. Each row should contain one question and its corresponding note. The first row should be a header row with the column names "question" and "context". The "context" column must contain the exact text of the matching note from context.csv.
+    This file contains questions and their correct matching note. Each row should contain one question and its corresponding note. The first row should be a header row with the column names "Question" and "Relevant Note". The "Relevant Note" column must contain the exact text of the matching note from context.csv.
     Example:
-                
-    TODO: example screenshot
-                
-    #### Important notes:
+    """)
+    st.image("assets/qanda.png") 
+
+    st.markdown("""            
+    #### Important tips:
     - Every “Relevant Note” in qanda.csv must exist exactly in context.csv.
     - You can have multiple questions that match the same note.
     - You can have notes in context.csv that are not matched to any question in qanda.csv.                

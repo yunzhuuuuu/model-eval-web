@@ -7,7 +7,7 @@ cori_model_eval/
 ├── embeddings/  
 ├── data_and_embeddings.tar.gz
 
-### How to run
+### How to run locally
 1. install dependencies
 ```
 pip install -r requirements.txt
@@ -25,6 +25,11 @@ If you want to test gemini model, you should set up your own API key and enable 
 GEMINI_API_KEY="your_key_here"
 ```
 and copy paste your api key here.
+
+To let it run on website, the key needs to be updated so streamlit.
+1. Go to share.streamlit.io and log in
+2. Click the "⋮" menu next to your app → Settings → Secrets
+3. Paste in the same TOML content as the local file
 
 ### TODO
 - figure out how to store and show students' datasets
