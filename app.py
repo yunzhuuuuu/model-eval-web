@@ -57,7 +57,7 @@ with tab1:
     st.markdown("""
     _Will link to another introduction of retrieval models and sentence transformers_
 
-    Students from Olin College of Engineering developed a note-taking application, where users store information as notes and could later retrieve that information by asking questions. 
+    Students from Olin College of Engineering developed a note-taking application in summer 2025, EchoMinds, to support people who are blind or visually impaired (BVI) with machine learning. App users could store information as notes and could later retrieve that information by asking questions. 
     The app implements a retrieval model that can match the user's question to the most relevant note instead of matching exact key words.    
 
     The retrieval system compares the meaning of a question with the meaning of every available note.
@@ -171,11 +171,11 @@ with tab2:
 with tab3:
     st.header("Create and Upload Your Dataset")
 
-    st.header("How to create your dataset")
+    st.header("Create your dataset")
     st.markdown("""
     Before you start creating your own dataset and evaluating the model performance on it, you should make sure you've explored the Dataset Explorer Tab and have a sense of what a valid dataset looks like. We will also provide more examples below.
 
-    #### What to include in your dataset
+    #### What your dataset should look like
 
     Your dataset notes can be about any topic that could reasonably be stored in a note-taking application, including:
 
@@ -184,13 +184,6 @@ with tab3:
     - Study notes
     - ......
 
-    You can create the dataset yourself or use LLMs to generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
-                
-    [PROMPT TO BE DONE]
-                
-    You are also encouraged to make both by yourself and by using LLMs and explore the differences in the evaluation results.
- 
-    #### What your dataset should look like
     Your dataset must include 2 .csv files which you could create in Excel or Google Sheets and then export as .csv files. They are:
 
     1. context.csv
@@ -206,7 +199,21 @@ with tab3:
     """)
     st.image("assets/qanda.png") 
 
-    st.markdown("""            
+    st.markdown("""     
+    #### How to create your dataset
+    You can create the dataset yourself or use LLMs to generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
+    
+    ```
+    I'm building a test dataset for a note-taking app's search feature. Generate [NUMBER] short notes about [YOUR TOPIC]. Each note should be 1-3 sentences, written the way a real person would jot down a quick note for themselves.
+    Then, for each note, write one question that a person might ask later to look up that note. The question should NOT reuse the exact same words as the note — it should ask about the same idea in different phrasing (e.g. if the note says "Pasta: spaghetti, olive oil, garlic, cherry tomatoes, basil, parmesan cheese," a good question would be "What ingredients do I need for the pasta recipe?" not "What are the pasta ingredients I listed?").
+    
+    Output the results as two lists:
+    1. Notes (numbered)
+    2. Questions (numbered to match the note they refer to)
+    ```
+                
+    You are also encouraged to make both by yourself and by using LLMs and explore the differences in the evaluation results.
+                       
     #### Important tips:
     - Every “Relevant Note” in qanda.csv must exist exactly in context.csv.
     - You can have multiple questions that match the same note.
@@ -214,6 +221,7 @@ with tab3:
     - You should manually check that the questions and correct notes pairs are accurate and make sense.
 
     After uploading, embeddings will be generated automatically and the dataset will become available for evaluation.
+    
     """)
 
     st.header("Upload Files")
