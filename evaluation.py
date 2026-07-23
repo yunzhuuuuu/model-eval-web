@@ -10,16 +10,40 @@ MODELS = [
     "multi-qa-MiniLM-L6-dot-v1"
 ]
 
-AVAILABLE_METRICS = ["Recall@1", "Recall@3", "MRR", "Mean Rank"]
+AVAILABLE_METRICS = ["Recall@1", "Recall@3", "Mean Rank", "MRR"]
+
+# Session-scoped uploaded datasets are stored on disk with this separator in their filename
+SESSION_SEPARATOR = "__"
+
+def make_dataset_name(session_id, dataset_name):
+    """Build the internal, session-scoped name used for files on disk."""
+    return f"{session_id}{SESSION_SEPARATOR}{dataset_name}"
+
+def display_name(internal_name, session_id):
+    """Strip the session prefix off a dataset name for display purposes."""
+    prefix = f"{session_id}{SESSION_SEPARATOR}"
+    if session_id and internal_name.startswith(prefix):
+        return f"{internal_name[len(prefix):]} (yours)"
+    return internal_name
 
 # load data
-def load_datasets():
+def load_datasets(session_id=None):
+    """
+    session_id: if provided, session-scoped datasets belonging to OTHER
+    sessions are hidden. Shared/preloaded datasets (no session prefix)
+    are always included.
+    """
     datasets = {}
     # auto discover datasets
     for filename in os.listdir("datasets"):
         if not filename.endswith(".npz"):
             continue
         dataset_name = filename[:-4]
+
+        if SESSION_SEPARATOR in dataset_name:
+            owner_id, _ = dataset_name.split(SESSION_SEPARATOR, 1)
+            if owner_id != session_id:
+                continue  # belongs to a different session, skip it
 
         d = np.load(os.path.join("datasets", filename))
         datasets[dataset_name] = {
@@ -37,9 +61,9 @@ def calculate_similarities(question_embeddings, context_embeddings):
         rankings[i, :] = np.argsort(-similarities[i, :])
     return rankings
 
-def load_rankings():
+def load_rankings(session_id=None):
     all_rankings = defaultdict(dict)
-    datasets = load_datasets()
+    datasets = load_datasets(session_id)
     for dataset_name in datasets:
         for model in MODELS:
             q_path = (f"embeddings/" f"{dataset_name}_questions_{model}.npz")
@@ -76,7 +100,7 @@ def mean_rank(rankings, most_relevant):
         rank_sum += (rank + 1)
     return rank_sum / len(most_relevant)
 
-# maps metric name -> function that computes it from (rankings, most_relevant)
+# maps metric name to function that computes it from (rankings, most_relevant)
 def compute_metric(metric_name, rankings, most_relevant):
     if metric_name == "Recall@1":
         return recall_at_k(rankings, most_relevant, 1)
@@ -90,16 +114,18 @@ def compute_metric(metric_name, rankings, most_relevant):
         raise ValueError(f"Unknown metric: {metric_name}")
 
 # main
-def build_results_tables(selected_metrics=None):
+def build_results_tables(selected_metrics=None, session_id=None):
     """
     selected_metrics: list of metric names to include (subset of AVAILABLE_METRICS).
     Defaults to all available metrics if not specified.
+    session_id: if provided, only this session's uploaded datasets (plus
+    shared/preloaded ones) are included.
     """
     if selected_metrics is None:
         selected_metrics = AVAILABLE_METRICS
 
-    datasets = load_datasets()
-    rankings = load_rankings()
+    datasets = load_datasets(session_id)
+    rankings = load_rankings(session_id)
     result_tables = {}
     for dataset_name in datasets:
         most_relevant = datasets[dataset_name]["most_relevant"]
@@ -116,5 +142,6 @@ def build_results_tables(selected_metrics=None):
             for metric in selected_metrics:
                 row[metric] = round(compute_metric(metric, r, most_relevant), 4)
             rows.append(row)
-        result_tables[dataset_name] = pd.DataFrame(rows)
+        label = display_name(dataset_name, session_id)
+        result_tables[label] = pd.DataFrame(rows)
     return result_tables

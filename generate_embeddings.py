@@ -7,6 +7,7 @@ from google.genai.errors import ClientError
 from csv import reader
 import streamlit as st
 
+
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def gemini_embedded(texts, label):
@@ -55,12 +56,15 @@ def gemini_embedded(texts, label):
 #         most_relevant_indices = [contexts.index(m) for m in most_relevant]
 #     embed_dataset("assistive_technology_320", questions, contexts, most_relevant_indices, generate_gemini_embeddings)
 
-def embed_csv_dataset(dataset_name, facts_csv, qa_csv, generate_gemini_embeddings=False):
+def embed_csv_dataset(dataset_name, facts_csv, qa_csv, generate_gemini_embeddings=False, overwrite=False):
     dataset_path = f"datasets/{dataset_name}.npz"
     if os.path.exists(dataset_path):
-        print(f"Dataset '{dataset_name}' already embedded, skipping...")
-        return
-    
+        if not overwrite:
+            print(f"Dataset '{dataset_name}' already embedded, skipping...")
+            return
+        print(f"Dataset '{dataset_name}' already exists, overwriting...")
+        clear_existing_dataset_files(dataset_name)
+
     # Facts CSV:
     # col 0 = context
     with open(facts_csv, encoding='utf-8') as f:
@@ -91,6 +95,16 @@ def embed_csv_dataset(dataset_name, facts_csv, qa_csv, generate_gemini_embedding
     ]
 
     embed_dataset(dataset_name, questions, contexts, most_relevant_indices, generate_gemini_embeddings)
+
+def clear_existing_dataset_files(dataset_name):
+    """Remove a previously generated dataset + its embeddings, so it can be regenerated from scratch."""
+    dataset_path = f"datasets/{dataset_name}.npz"
+    if os.path.exists(dataset_path):
+        os.remove(dataset_path)
+    if os.path.exists("embeddings"):
+        for filename in os.listdir("embeddings"):
+            if filename.startswith(f"{dataset_name}_questions_") or filename.startswith(f"{dataset_name}_contexts_"):
+                os.remove(os.path.join("embeddings", filename))
 
 # def embed_squad(generate_gemini_embeddings=False):
 #     dataset = load_dataset("squad", split='validation')

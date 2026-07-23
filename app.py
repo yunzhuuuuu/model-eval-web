@@ -3,8 +3,11 @@ import pandas as pd
 import os
 import subprocess
 import gdown
+import uuid
+from csv import reader
+import io
 
-from evaluation import load_datasets, build_results_tables, AVAILABLE_METRICS
+from evaluation import load_datasets, build_results_tables, make_dataset_name, display_name, AVAILABLE_METRICS
 from generate_embeddings import embed_csv_dataset
 
 st.set_page_config(
@@ -13,6 +16,21 @@ st.set_page_config(
 )
 st.title("Retrieval Model Evaluation Dashboard")
 
+# Each visitor gets a random session ID the first time they load the app.
+# Datasets are lost if the app container restarts (~12h deactivation)
+if "session_id" not in st.session_state:
+    st.session_state.session_id = uuid.uuid4().hex[:8]
+session_id = st.session_state.session_id
+
+# Soft-recommended dataset size, shown to students as guidance.
+SOFT_LIMIT_CONTEXTS = 1000
+SOFT_LIMIT_QANDA = 200
+
+# Hard limit (enforced) to protects the Gemini API key from being used to embed unexpectedly huge uploads.
+HARD_LIMIT_ROWS = 5000
+
+
+# Preloaded example datasets (SQuAD, Assistive Technology) + their embeddings
 @st.cache_resource
 def download_preprocessed_data():
     if not (os.path.exists("datasets") and os.path.exists("embeddings")):
@@ -21,15 +39,6 @@ def download_preprocessed_data():
     return True
 
 download_preprocessed_data()
-# @st.cache_resource
-# def download_csv(file_id, output_path):
-#     if not os.path.exists(output_path):
-#         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-#         gdown.download(id=file_id, output=output_path, quiet=False)
-#     return True
-
-# download_csv("1u47P1htCfa0MT9UR68waUTulwpZP6YdY", "raw_data/assistive_technology/context.csv")
-# download_csv("1oX5pQ2Op9ClgdufoC180zUsduJVHd-s3", "raw_data/assistive_technology/qanda.csv")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "Introduction",
@@ -87,9 +96,7 @@ with tab1:
 # Dataset Explorer
 with tab2:
     st.header("Dataset Selection")
-
-    datasets = load_datasets()
-
+    datasets = load_datasets(session_id)
     st.markdown("""
     Choose a dataset to explore.
 
@@ -100,7 +107,8 @@ with tab2:
     """)
     dataset_name = st.selectbox(
         "Select a dataset",
-        list(datasets.keys())
+        list(datasets.keys()),
+        format_func=lambda name: display_name(name, session_id)
     )
     dataset = datasets[dataset_name]
     questions = dataset["questions"]
@@ -169,13 +177,11 @@ with tab2:
 
 # Upload Dataset
 with tab3:
-    st.header("Create and Upload Your Dataset")
-
     st.header("Create your dataset")
-    st.markdown("""
+    st.markdown(f"""
     Before you start creating your own dataset and evaluating the model performance on it, you should make sure you've explored the Dataset Explorer Tab and have a sense of what a valid dataset looks like. We will also provide more examples below.
 
-    #### What your dataset should look like
+    #### Dataset Requirements
 
     Your dataset notes can be about any topic that could reasonably be stored in a note-taking application, including:
 
@@ -199,29 +205,30 @@ with tab3:
     """)
     st.image("assets/qanda.png") 
 
-    st.markdown("""     
-    #### How to create your dataset
-    You can create the dataset yourself or use LLMs to generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
+    st.markdown(f"""     
+    #### Creating Your Dataset
+    You can create the dataset yourself or use LLMs to help generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
     
     ```
     I'm building a test dataset for a note-taking app's search feature. Generate [NUMBER] short notes about [YOUR TOPIC]. Each note should be 1-3 sentences, written the way a real person would jot down a quick note for themselves.
-    Then, for each note, write one question that a person might ask later to look up that note. The question should NOT reuse the exact same words as the note — it should ask about the same idea in different phrasing (e.g. if the note says "Pasta: spaghetti, olive oil, garlic, cherry tomatoes, basil, parmesan cheese," a good question would be "What ingredients do I need for the pasta recipe?" not "What are the pasta ingredients I listed?").
+    Then, choose [NUMBER] notes, write one question for each note that a person might ask later to look up that note. The question should NOT reuse too much exact same words as the note — it should ask about the same idea in different phrasing (e.g. if the note says "Pasta: spaghetti, olive oil, garlic, cherry tomatoes, basil, parmesan cheese," a good question would be "What ingredients do I need for the pasta recipe?" not "What are the pasta ingredients I listed?").
     
     Output the results as two lists:
-    1. Notes (numbered)
-    2. Questions (numbered to match the note they refer to)
+    1. Notes (unnumbered)
+    2. Questions and their corresponding notes in two columns (unnumbered, the notes must be exactly the same as in the first list)
     ```
                 
     You are also encouraged to make both by yourself and by using LLMs and explore the differences in the evaluation results.
+
+    **Recommended dataset size:** to keep things fast to evaluate and easy to review by hand, we recommend keeping your dataset under **{SOFT_LIMIT_CONTEXTS} notes** in context.csv and under **{SOFT_LIMIT_QANDA} questions** in qanda.csv. This is just a guideline, not a hard rule -- but datasets much larger than this may take a while to embed and evaluate.
                        
-    #### Important tips:
+    #### Before You Upload
     - Every “Relevant Note” in qanda.csv must exist exactly in context.csv.
     - You can have multiple questions that match the same note.
     - You can have notes in context.csv that are not matched to any question in qanda.csv.                
     - You should manually check that the questions and correct notes pairs are accurate and make sense.
 
     After uploading, embeddings will be generated automatically and the dataset will become available for evaluation.
-    
     """)
 
     st.header("Upload Files")
@@ -231,32 +238,83 @@ with tab3:
     context_file = st.file_uploader("Upload context", type=["csv"], key="context")
     qanda_file = st.file_uploader("Upload q&a", type=["csv"], key="qanda")
 
+    def count_csv_data_rows(file_bytes):
+        """Count rows in a CSV, excluding the header row."""
+        text = file_bytes.decode("utf-8", errors="replace")
+        rows = list(reader(io.StringIO(text)))
+        return max(0, len(rows) - 1)
+
+    def save_and_embed(internal_name, display_dataset_name, context_bytes, qanda_bytes, overwrite):
+        dataset_dir = os.path.join("raw_data", internal_name)
+        os.makedirs(dataset_dir, exist_ok=True)
+        context_path = os.path.join(dataset_dir, "context.csv")
+        qanda_path = os.path.join(dataset_dir, "qanda.csv")
+        with open(context_path, "wb") as f:
+            f.write(context_bytes)
+        with open(qanda_path, "wb") as f:
+            f.write(qanda_bytes)
+
+        st.info("Dataset saved. Generating embeddings...")
+
+        embed_csv_dataset(
+            internal_name,
+            context_path,
+            qanda_path,
+            generate_gemini_embeddings=True,
+            overwrite=overwrite
+        )
+        st.success(f"Dataset '{display_dataset_name}' is ready and embedded. It's private to your session — other visitors won't see it.")
+
     if st.button("Save Dataset"):
         if not dataset_name:
             st.error("Please provide a dataset name.")
+        elif "__" in dataset_name:
+            st.error("Dataset name can't contain '__'. Please choose a different name.")
         elif context_file is None or qanda_file is None:
             st.error("Please upload both CSV files.")
         else:
-            dataset_dir = os.path.join("raw_data", dataset_name)
-            os.makedirs(dataset_dir, exist_ok=True)
-            # save uploads
-            context_path = os.path.join(dataset_dir, "context.csv")
-            qanda_path = os.path.join(dataset_dir, "qanda.csv")
-            with open(context_path, "wb") as f:
-                f.write(context_file.getbuffer())
-            with open(qanda_path, "wb") as f:
-                f.write(qanda_file.getbuffer())
+            context_bytes = bytes(context_file.getbuffer())
+            qanda_bytes = bytes(qanda_file.getbuffer())
+            context_rows = count_csv_data_rows(context_bytes)
+            qanda_rows = count_csv_data_rows(qanda_bytes)
 
-            st.info("Dataset saved. Generating embeddings...")
+            if context_rows > HARD_LIMIT_ROWS or qanda_rows > HARD_LIMIT_ROWS:
+                st.error(
+                    f"Dataset too large: context.csv has {context_rows} rows and qanda.csv has {qanda_rows} rows. "
+                    f"Both must be under {HARD_LIMIT_ROWS} rows. Please reduce your dataset size and try again."
+                )
+            else:
+                internal_name = make_dataset_name(session_id, dataset_name)
+                dataset_path = os.path.join("datasets", f"{internal_name}.npz")
+                if os.path.exists(dataset_path):
+                    # Stash pending upload in session state so it survives
+                    # the rerun that happens when the confirm buttons are clicked.
+                    st.session_state.pending_overwrite = {
+                        "internal_name": internal_name,
+                        "display_name": dataset_name,
+                        "context_bytes": context_bytes,
+                        "qanda_bytes": qanda_bytes,
+                    }
+                else:
+                    save_and_embed(internal_name, dataset_name, context_bytes, qanda_bytes, overwrite=False)
 
-            # run pipeline
-            embed_csv_dataset(
-                dataset_name,
-                context_path,
-                qanda_path,
-                generate_gemini_embeddings=True 
-            )
-            st.success(f"Dataset '{dataset_name}' is ready and embedded.")
+    if "pending_overwrite" in st.session_state:
+        pending = st.session_state.pending_overwrite
+        st.warning(f"A dataset named '{pending['display_name']}' already exists. Do you want to overwrite it?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, overwrite"):
+                save_and_embed(
+                    pending["internal_name"],
+                    pending["display_name"],
+                    pending["context_bytes"],
+                    pending["qanda_bytes"],
+                    overwrite=True
+                )
+                del st.session_state.pending_overwrite
+        with col2:
+            if st.button("Cancel"):
+                del st.session_state.pending_overwrite
 
 
 # Evaluation Results
@@ -265,31 +323,38 @@ with tab4:
     st.markdown("""
     This page summarizes how well different retrieval models perform on each dataset.
     The results table provides a quantitative comparison of retrieval performance across datasets and models.
+    For information about the evaluation metrics used, please read this post: [Recall@k VS MRR](https://medium.com/@er111/recall-k-versus-mrr-918da3264f2a?sharedUserId=er111) 
 
     Choose which metrics to display below:
 
     - **Recall@1** measures how often the correct note is ranked first. For example, a Recall@1 score of 0.80 means the model returned the correct note as its top result for 80% of questions.
     - **Recall@3** measures how often the correct note appears within the top three results. This reflects how likely a user is to find the correct note after reviewing a small number of suggestions.
-    - **Mean Reciprocal Rank (MRR)** evaluates not only whether the correct note was retrieved, but also how highly it was ranked. Models receive higher scores when the correct note appears closer to the top of the results list.
-    (more: https://www.pinecone.io/learn/offline-evaluation/#Mean-Reciprocal-Rank-(MRR))
     - **Mean Rank** is the average position of the correct note in the ranked results (e.g., a Mean Rank of 2.5 means the correct note is typically found around the 2nd or 3rd spot). Lower is better.
+    - **Mean Reciprocal Rank (MRR)** evaluates not only whether the correct note was retrieved, but also how highly it was ranked. Models receive higher scores when the correct note appears closer to the top of the results list.
  
     A few other common retrieval metrics are **not** included above, because in this dataset every question has exactly one correct note. That single detail makes each of them turn into just another way of writing Recall@k or MRR, so they wouldn't tell us anything new:
  
     - **Precision@k** measures what fraction of the top-*k* retrieved results are actually relevant. Normally, if a question could have several correct notes, Precision@k and Recall@k would give different information. But here, since there's only ever one correct note, Precision@k is just Recall@k divided by k — it's the same score, only smaller and less intuitive. That's why it's left out.
     - **Hit Rate@k** measures whether *at least one* relevant result appears in the top-*k* (a yes/no per question, averaged across all questions). This distinction only matters when a question could have multiple correct notes. Since each question here has just one, "getting at least one hit" and "getting the one correct note" mean exactly the same thing — so Hit Rate@k is identical to Recall@k, just under a different name.
+    - **Mean Average Precision (MAP)** averages precision at each rank where a relevant result appears, rewarding models that surface *multiple* relevant results early, then averages this across questions. It's built to reward finding several correct notes, in the right order. With only one correct note per question, that calculation simplifies down to exactly the same formula as MRR.
+
+    #### The models being compared
+
+    - **gemini-embedding-001** is Google's hosted embedding model, accessed through the Gemini API. It tends to capture nuanced meaning well but requires an internet connection and API calls for every embedding.
+    - **all-mpnet-base-v2** is a general-purpose sentence-embedding model from the Sentence Transformers library, trained on a broad mix of text. It's the model EchoMinds itself uses.
+    - **multi-qa-MiniLM-L6-dot-v1** is a smaller, faster Sentence Transformers model trained specifically for question-answering-style retrieval. It trades a bit of accuracy for much faster embedding speed.
     """)
 
     selected_metrics = st.multiselect(
         "Select metrics to display",
-        options=AVAILABLE_METRICS,
+        options=AVAILABLE_METRICS
     )
 
     if st.button("Evaluate Available Datasets"):
         if not selected_metrics:
             st.warning("Please select at least one metric.")
         else:
-            results_tables = build_results_tables(selected_metrics)
+            results_tables = build_results_tables(selected_metrics, session_id)
             for dataset_name, table in results_tables.items():
                 st.markdown(f"### {dataset_name}")
                 st.dataframe(

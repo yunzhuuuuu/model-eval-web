@@ -32,6 +32,5 @@ To let it run on website, the key needs to be updated so streamlit.
 3. Paste in the same TOML content as the local file
 
 ### TODO
-- figure out how to store and show students' datasets
-- deploy the web
 - modulize the three sections
+- debug messages if the dataset files breaks
