@@ -16,8 +16,7 @@ st.set_page_config(
 )
 st.title("Retrieval Model Evaluation Dashboard")
 
-# Each visitor gets a random session ID the first time they load the app.
-# Datasets are lost if the app container restarts (~12h deactivation)
+# Each visitor gets a random session ID the first time they load the app
 if "session_id" not in st.session_state:
     st.session_state.session_id = uuid.uuid4().hex[:8]
 session_id = st.session_state.session_id
@@ -26,8 +25,8 @@ session_id = st.session_state.session_id
 SOFT_LIMIT_CONTEXTS = 1000
 SOFT_LIMIT_QANDA = 200
 
-# Hard limit (enforced) to protects the Gemini API key from being used to embed unexpectedly huge uploads.
-HARD_LIMIT_ROWS = 5000
+# Enforced hard limit to protect API key
+HARD_LIMIT_ROWS = 10_000
 
 
 # Preloaded example datasets (SQuAD, Assistive Technology) + their embeddings
@@ -64,26 +63,9 @@ with tab1:
                 
     st.header("Background")
     st.markdown("""
-    _Will link to another introduction of retrieval models and sentence transformers_
+    Students from Olin College of Engineering developed a note-taking application in summer 2025, EchoMinds, to support people who are blind or visually impaired (BVI) with machine learning. App users could store information as notes and could later retrieve that information by asking questions. The app implements a retrieval model that can match the user's question to the most relevant note instead of matching exact key words.
 
-    Students from Olin College of Engineering developed a note-taking application in summer 2025, EchoMinds, to support people who are blind or visually impaired (BVI) with machine learning. App users could store information as notes and could later retrieve that information by asking questions. 
-    The app implements a retrieval model that can match the user's question to the most relevant note instead of matching exact key words.    
-
-    The retrieval system compares the meaning of a question with the meaning of every available note.
-    For example, a user might ask:
-
-    "What ingredients do I need for the pasta recipe?"
-                
-    A relevant note might contain:
-
-    "Pasta: spaghetti, olive oil, garlic, cherry tomatoes, basil, parmesan cheese."
-                
-    Even though the question and note do not use exactly the same words, a retrieval model can recognize that they discuss the same topic.
-    To do this, the model calculates a similarity score between the question and each available note. Notes with higher similarity scores are ranked closer to the top of the results.
-
-    A strong retrieval model consistently places the correct note among its highest-ranked results, which can also be reflected by some metrics we'll discuss in the Evaluation Results tab.
-
-    The SQuAD and Assistive Technology datasets were used by the Olin students and serve as examples of retrieval datasets.
+    For more information about retrieval models and embeddings, Read [this 2-page document](https://docs.google.com/document/d/1a8xVYLW7ON6jAQoaHGS5U2U93N3u8C0Y49vahNilTsk/edit?usp=sharing) before continuing. It's the foundation for everything else in this dashboard.
                 
     """)
 
@@ -98,6 +80,10 @@ with tab2:
     st.header("Dataset Selection")
     datasets = load_datasets(session_id)
     st.markdown("""
+    This tab lets you look inside a retrieval dataset before you evaluate it. A retrieval dataset is really just two things paired together: a set of notes, and a set of questions that each point to one correct note. Browsing an existing dataset here is the best way to understand what makes a dataset good (or not) before you try building your own in the Upload Dataset tab.
+
+    The SQuAD and Assistive Technology datasets were used by the Olin student developers and serve as examples of retrieval datasets. You can explore them here, or you can upload your own dataset in the next tab and come back to check your own ones.
+
     Choose a dataset to explore.
 
     Each dataset contains:
@@ -110,6 +96,7 @@ with tab2:
         list(datasets.keys()),
         format_func=lambda name: display_name(name, session_id)
     )
+    st.caption("Not sure where to start? Try the pre-loaded datasets first to see what a good dataset looks like.")
     dataset = datasets[dataset_name]
     questions = dataset["questions"]
     contexts = dataset["contexts"]
@@ -118,7 +105,9 @@ with tab2:
     # questions table
     st.subheader("Q&A")
     st.markdown("""
-    The Questions and Answers table lists all questions and the context that has been labeled as the correct match.    """)
+    The Questions and Answers table lists all questions and the context that has been labeled as the correct match.
+    Think of this as the "answer key" for the dataset: each question has one note marked as its correct match, and that's what the retrieval model will be judged against when we evaluate it. As you browse, notice that the wording of the question often differs from the wording of its matching note — that's intentional, since a good retrieval model should find the right note by *meaning*, not by matching exact words.
+    """)
     questions_df = pd.DataFrame({
         "Question ID": range(len(questions)),
         "Question": questions,
@@ -138,7 +127,7 @@ with tab2:
     st.subheader("Contexts (First 60)")
     st.markdown("""
     The Contexts table displays the available passages or notes that can be retrieved.
-    Only the first 60 contexts are shown here for easier browsing.
+    These are all the notes the retrieval model has to choose from — like the full contents of someone's note-taking app. When a question comes in, the model searches through every one of these notes (not just the 60 shown here) and ranks them by how closely their meaning matches the question. Only the first 60 contexts are shown here for easier browsing.
     """)
     contexts_df = pd.DataFrame({
         "Context ID": range(min(60, len(contexts))),
@@ -155,6 +144,7 @@ with tab2:
     st.header("Question-Context Pair Inspector")
     st.markdown("""
     Select an example question to inspect its corresponding ground-truth context.
+    Use this tool to zoom in on one question-note pair at a time, so you can really see the relationship between a question and its correct note without scrolling through both big tables above. This is the same "answer key" data from the Q&A table, just shown one pair at a time for closer inspection.
     """)
     q_idx = st.number_input(
         "Question ID",
@@ -179,7 +169,7 @@ with tab2:
 with tab3:
     st.header("Create your dataset")
     st.markdown(f"""
-    Before you start creating your own dataset and evaluating the model performance on it, you should make sure you've explored the Dataset Explorer Tab and have a sense of what a valid dataset looks like. We will also provide more examples below.
+    Before you start creating your own dataset and evaluating the model performance on it, you should make sure you've explored the Dataset Explorer tab and have a sense of what a valid dataset looks like. We will also provide more examples below.
 
     #### Dataset Requirements
 
@@ -207,7 +197,7 @@ with tab3:
 
     st.markdown(f"""     
     #### Creating Your Dataset
-    You can create the dataset yourself or use LLMs to help generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
+    You can create the dataset yourself or use LLMs to generate the dataset. Make sure the questions and notes are realistic and relevant to the topic. Here's a potential prompt you can follow:
     
     ```
     I'm building a test dataset for a note-taking app's search feature. Generate [NUMBER] short notes about [YOUR TOPIC]. Each note should be 1-3 sentences, written the way a real person would jot down a quick note for themselves.
@@ -215,7 +205,7 @@ with tab3:
     
     Output the results as two lists:
     1. Notes (unnumbered)
-    2. Questions and their corresponding notes in two columns (unnumbered, the notes must be exactly the same as in the first list)
+    2. Questions and their corresponding notes (unnumbered, the notes must be exactly the same as in the first list)
     ```
                 
     You are also encouraged to make both by yourself and by using LLMs and explore the differences in the evaluation results.
@@ -232,6 +222,7 @@ with tab3:
     """)
 
     st.header("Upload Files")
+    st.caption("Already made your two CSVs? Great — you're almost done. Just name your dataset and upload both files below.")
     st.markdown("""Give a word or short phrase to name your dataset.""")
     dataset_name = st.text_input("Dataset Name:")
     st.markdown("""Upload your two .csv files. Once you click "Save Dataset", the system will automatically generate embeddings for your dataset and save it for evaluation.""")
@@ -287,8 +278,6 @@ with tab3:
                 internal_name = make_dataset_name(session_id, dataset_name)
                 dataset_path = os.path.join("datasets", f"{internal_name}.npz")
                 if os.path.exists(dataset_path):
-                    # Stash pending upload in session state so it survives
-                    # the rerun that happens when the confirm buttons are clicked.
                     st.session_state.pending_overwrite = {
                         "internal_name": internal_name,
                         "display_name": dataset_name,
@@ -321,18 +310,20 @@ with tab3:
 with tab4:
     st.subheader("Evaluation Metrics")
     st.markdown("""
-    This page summarizes how well different retrieval models perform on each dataset.
+    This tab summarizes how well different retrieval models perform on each dataset.
     The results table provides a quantitative comparison of retrieval performance across datasets and models.
-    For information about the evaluation metrics used, please read this post: [Recall@k VS MRR](https://medium.com/@er111/recall-k-versus-mrr-918da3264f2a?sharedUserId=er111) 
 
-    Choose which metrics to display below:
+    #### The metrics used for evaluation
 
     - **Recall@1** measures how often the correct note is ranked first. For example, a Recall@1 score of 0.80 means the model returned the correct note as its top result for 80% of questions.
     - **Recall@3** measures how often the correct note appears within the top three results. This reflects how likely a user is to find the correct note after reviewing a small number of suggestions.
     - **Mean Rank** is the average position of the correct note in the ranked results (e.g., a Mean Rank of 2.5 means the correct note is typically found around the 2nd or 3rd spot). Lower is better.
     - **Mean Reciprocal Rank (MRR)** evaluates not only whether the correct note was retrieved, but also how highly it was ranked. Models receive higher scores when the correct note appears closer to the top of the results list.
+    To better understand these metrics, read more here: [Recall vs. MRR](https://medium.com/@er111/recall-k-versus-mrr-918da3264f2a?sharedUserId=er111).
  
     A few other common retrieval metrics are **not** included above, because in this dataset every question has exactly one correct note. That single detail makes each of them turn into just another way of writing Recall@k or MRR, so they wouldn't tell us anything new:
+
+    **A quick note on "k":** you'll see "k" in the metric names below, like Precision@**k**. It's a stand-in for a number — "how many results you're willing to look at." For example, if k=3, you'd be looking at the top three results. This is the same idea as Recall@1 and Recall@3 above, just written as a variable instead of plugging in the actual number.
  
     - **Precision@k** measures what fraction of the top-*k* retrieved results are actually relevant. Normally, if a question could have several correct notes, Precision@k and Recall@k would give different information. But here, since there's only ever one correct note, Precision@k is just Recall@k divided by k — it's the same score, only smaller and less intuitive. That's why it's left out.
     - **Hit Rate@k** measures whether *at least one* relevant result appears in the top-*k* (a yes/no per question, averaged across all questions). This distinction only matters when a question could have multiple correct notes. Since each question here has just one, "getting at least one hit" and "getting the one correct note" mean exactly the same thing — so Hit Rate@k is identical to Recall@k, just under a different name.
@@ -350,15 +341,36 @@ with tab4:
         options=AVAILABLE_METRICS
     )
 
+    METRIC_HELP = {
+        "Recall@1": "How often the correct note was the very top result. Higher is better.",
+        "Recall@3": "How often the correct note showed up somewhere in the top 3 results. Higher is better.",
+        "MRR": "Rewards ranking the correct note near the top, not just anywhere in the results. Higher is better.",
+        "Mean Rank": "The average position of the correct note (1st, 2nd, 3rd...). Lower is better.",
+    }
+
     if st.button("Evaluate Available Datasets"):
         if not selected_metrics:
             st.warning("Please select at least one metric.")
         else:
+            st.caption("Tip: hover over a column header below (ⓘ) for a plain-language explanation of that metric.")
             results_tables = build_results_tables(selected_metrics, session_id)
             for dataset_name, table in results_tables.items():
                 st.markdown(f"### {dataset_name}")
+                column_config = {
+                    "model": st.column_config.TextColumn(
+                        "Model",
+                        help="Which embedding model was used to rank the notes for this row."
+                    )
+                }
+                for metric in selected_metrics:
+                    column_config[metric] = st.column_config.NumberColumn(
+                        metric,
+                        help=METRIC_HELP.get(metric, ""),
+                        format="%.2f"
+                    )
                 st.dataframe(
                     table,
                     width="stretch",
-                    hide_index=True
+                    hide_index=True,
+                    column_config=column_config
                 )
