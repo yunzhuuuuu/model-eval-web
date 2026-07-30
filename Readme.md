@@ -1,36 +1,37 @@
-### Repo Structure
-cori_model_eval/  
-├── app.py  
-├── generate_embeddings.py
-├── evaluation.py  
-├── datasets/  
-├── embeddings/  
-├── data_and_embeddings.tar.gz
+# Retrieval Model Evaluation Dashboard
 
-### How to run locally
-1. install dependencies
-```
-pip install -r requirements.txt
-```
-3. run streamlit
-```
-streamlit run app.py
-```
+A website for learning how retrieval-based machine learning systems work, hands-on. Students will:
 
-#### How to get Gemini API key
-If you want to test gemini model, you should set up your own API key and enable generate_gemini_embeddings for embed_dataset().
-1. Visit https://aistudio.google.com/api-keys and create an API key.
-2. Create a .streamlit/secrets.toml file (need to update this)
-```
-GEMINI_API_KEY="your_key_here"
-```
-and copy paste your api key here.
+1. **Learn about sentence embeddings and retrieval models** — how a machine learning model converts text into numerical vectors, and how similarity between those vectors is used to find the right answer to a question.
+2. **Design their own dataset of notes** — design notes that users might jot down. Each note is paired with a question someone might later ask to look that note back up, phrased differently than the note itself. This mirrors the real dataset structure used by EchoMinds, a note-taking app built by Olin students to support people who are blind or visually impaired (more information on the website).
+3. **Learn evaluation metrics and evaluate ML models** — apply metrics like Recall@1, Recall@3, Mean Rank, and MRR to measure how well different embedding models retrieve the correct note for a given question, using both pre-loaded example datasets and the dataset students design themselves.
 
-To let it run on website, the key needs to be updated so streamlit.
-1. Go to share.streamlit.io and log in
-2. Click the "⋮" menu next to your app → Settings → Secrets
-3. Paste in the same TOML content as the local file
+## Features
 
-### TODO
-- modulize the three sections
-- debug messages if the dataset files breaks
+- **Dataset Explorer** — browse pre-loaded example datasets (SQuAD, and the Assistive Technology dataset used to build EchoMinds), inspecting individual question-note pairs
+- **Upload your own dataset** — design a note-taking scenario, write or LLM-generate notes and matching questions, and upload two CSVs to have them automatically embedded
+- **Compare 3 embedding models** — `gemini-embedding-001`, `all-mpnet-base-v2`, and `multi-qa-MiniLM-L6-dot-v1`, evaluated side by side
+- **Multiple evaluation metrics** — Recall@1, Recall@3, Mean Rank, and MRR, with plain-language explanations and column tooltips built into the app
+
+## How to run locally
+
+1. Get a Gemini API key
+- Visit https://aistudio.google.com/api-keys and create an API key.
+- Create a `.streamlit/secrets.toml` file:
+   ```
+   GEMINI_API_KEY="your_key_here"
+   ```
+
+2. Install dependencies
+   ```
+   pip install -r requirements.txt
+   ```
+
+3. Run streamlit
+   ```
+   streamlit run app.py
+   ```
+
+## How to host the website
+
+See the full setup guide: https://docs.google.com/document/d/1EqBUNnkiXQ5mIU2FAirTw3ojkQQJi1qUmd1vXgxq0vI/edit?usp=sharing
